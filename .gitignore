@@ -1,0 +1,5 @@
+.rmapi.conf*
+state/
+*.log
+*.lock
+__pycache__/
