@@ -28,12 +28,6 @@ def log(msg):
 
 log(f"start argv={sys.argv} PATH={os.environ['PATH'][:120]}")
 
-RM_HOST = os.environ.get("RM_HOST", "root@10.11.99.1")
-RM_DOCS = "/home/root/.local/share/remarkable/xochitl"
-INBOX_NAME = os.environ.get("RM_INBOX_NAME", "zz Inbox")
-TEXT_SIZE = float(os.environ.get("RM_TEXT_SIZE", "26"))
-JSON_SIZE = float(os.environ.get("RM_JSON_SIZE", "16"))
-
 def _validated(name, val, default):
     try:
         v = float(val)
@@ -42,8 +36,32 @@ def _validated(name, val, default):
     except Exception:
         return float(default)
 
-TEXT_SIZE = _validated("RM_TEXT_SIZE", TEXT_SIZE, 26)
-JSON_SIZE = _validated("RM_JSON_SIZE", JSON_SIZE, 16)
+# ---- configuration: CLI flags > env > ~/.config/rm-send.toml > defaults ----
+try:
+    import tomllib
+except ModuleNotFoundError:      # python < 3.11
+    tomllib = None
+
+def load_config():
+    path = (os.environ.get("RM_SEND_CONFIG") or
+            os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+                         "rm-send.toml"))
+    if tomllib and os.path.exists(path):
+        try:
+            with open(path, "rb") as f:
+                cfg = tomllib.load(f)
+            log(f"config: {path}")
+            return cfg
+        except Exception as e:
+            log(f"config parse failed ({path}): {e} — using defaults")
+    return {}
+
+CFG = load_config()
+RM_DOCS = "/home/root/.local/share/remarkable/xochitl"
+RM_HOST = os.environ.get("RM_HOST") or str(CFG.get("rm_host", "root@10.11.99.1"))
+INBOX_NAME = os.environ.get("RM_INBOX_NAME") or str(CFG.get("inbox_name", "zz Inbox"))
+TEXT_SIZE = _validated("RM_TEXT_SIZE", os.environ.get("RM_TEXT_SIZE") or CFG.get("text_size", 26), 26)
+JSON_SIZE = _validated("RM_JSON_SIZE", os.environ.get("RM_JSON_SIZE") or CFG.get("json_size", 16), 16)
 
 
 def sh(cmd, **kw):

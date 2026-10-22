@@ -1,0 +1,16 @@
+# rm-send configuration
+# Place this file at ~/.config/rm-send.toml (or point RM_SEND_CONFIG at it).
+# Precedence: CLI flags > environment variables > this file > defaults
+# (listed here).
+
+# Tablet SSH target (USB transport)
+rm_host = "root@10.11.99.1"
+
+# Library folder documents are delivered into (cloud transport) and the
+# visible-name prefix
+inbox_name = "zz Inbox"
+
+# Rendering sizes in pt (page scales to the tablet's 6.2in screen;
+# 26pt prose ≈ 2.7mm tall, 16pt mono ≈ 1.9mm)
+text_size = 26
+json_size = 16
