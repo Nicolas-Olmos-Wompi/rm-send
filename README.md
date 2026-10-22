@@ -48,7 +48,7 @@ into any notebook.
 ## Installation
 
 ```bash
-git clone <repository-url> && cd rm-send
+git clone https://github.com/Redooz/rm-send && cd rm-send
 ./install.sh
 rm-send --auth     # one-time; see below
 ```
