@@ -23,7 +23,7 @@ else
 fi
 
 # 3) optional extras (informational only)
-command -v rmapi   >/dev/null 2>&1 && echo "✓ rmapi found — cloud transport enabled" || echo "• no rmapi — cloud disabled (install rmapi + auth)"
+command -v rmapi   >/dev/null 2>&1 && echo "✓ rmapi found — cloud transport enabled (auth with: rm-send --auth)" || echo "• no rmapi — cloud disabled (install rmapi, then: rm-send --auth)"
 command -v pngpaste >/dev/null 2>&1 && echo "✓ pngpaste found (macOS clipboard images)" || true
 command -v xclip   >/dev/null 2>&1 && echo "✓ xclip found (X11 fallback)" || true
 
