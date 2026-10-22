@@ -31,6 +31,19 @@ log(f"start argv={sys.argv} PATH={os.environ['PATH'][:120]}")
 RM_HOST = os.environ.get("RM_HOST", "root@10.11.99.1")
 RM_DOCS = "/home/root/.local/share/remarkable/xochitl"
 INBOX_NAME = os.environ.get("RM_INBOX_NAME", "zz Inbox")
+TEXT_SIZE = float(os.environ.get("RM_TEXT_SIZE", "26"))
+JSON_SIZE = float(os.environ.get("RM_JSON_SIZE", "16"))
+
+def _validated(name, val, default):
+    try:
+        v = float(val)
+        assert 4 <= v <= 72
+        return v
+    except Exception:
+        return float(default)
+
+TEXT_SIZE = _validated("RM_TEXT_SIZE", TEXT_SIZE, 26)
+JSON_SIZE = _validated("RM_JSON_SIZE", JSON_SIZE, 16)
 
 
 def sh(cmd, **kw):
@@ -112,14 +125,14 @@ def build_pdf(kind, data, workdir):
                 f.write(
                     "#set page(width: 1404pt, height: 1872pt, margin: 72pt)\n"
                     f"== {typst_escape(stamp)}\n\n"
-                    f"#show raw: set text(size: 16pt)\n"
+                    f"#show raw: set text(size: {JSON_SIZE}pt)\n"
                     f"{ticks}json\n{s}\n{ticks}\n"
                 )
         else:
             with open(main, "w") as f:
                 f.write(
                     "#set page(width: 1404pt, height: 1872pt, margin: 96pt)\n"
-                    "#set text(size: 26pt, lang: \"en\")\n"
+                    f"#set text(size: {TEXT_SIZE}pt, lang: \"en\")\n"
                     "#set par(justify: false, leading: 0.7em)\n\n"
                     f"== {typst_escape(stamp)}\n\n{esc}\n"
                 )

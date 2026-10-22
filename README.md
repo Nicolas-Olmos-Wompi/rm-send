@@ -94,7 +94,14 @@ On macOS, add a shortcut via the Shortcuts app, Raycast, or Alfred pointing to
 | Variable | Default | Purpose |
 |---|---|---|
 | `RM_HOST` | `root@10.11.99.1` | Tablet SSH target |
-| `RM_INBOX_NAME` | `zz Inbox` | Visible name prefix of delivered documents |
+| `RM_INBOX_NAME` | `zz Inbox` | Library folder / name prefix of delivered documents |
+| `RM_TEXT_SIZE` | `26` | Prose font size (pt); values 4–72, anything unparseable falls back |
+| `RM_JSON_SIZE` | `16` | JSON/code font size (pt) |
+
+Example: bigger text + friendlier folder name:
+```bash
+export RM_INBOX_NAME="Inbox" RM_TEXT_SIZE="30" RM_JSON_SIZE="18"   # e.g. in ~/.config/environment.d/*.conf
+```
 
 ## Design notes
 
