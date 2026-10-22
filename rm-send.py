@@ -317,6 +317,17 @@ def count_pdf_pages(path):
 
 def main():
     args = sys.argv[1:]
+    # ---- interactive onboarding: exchange the 8-char code for a device token ----
+    if "--auth" in args:
+        print("rm-send cloud onboarding:")
+        print("  1. open  https://my.remarkable.com/device/browser/connect")
+        print("  2. paste the 8-character code when rmapi asks for it\n")
+        r = subprocess.run(["rmapi"])
+        if os.path.exists(os.path.expanduser("~/.config/rmapi/rmapi.conf")) and r.returncode == 0:
+            notify("✓ rmapi configured — cloud transport enabled")
+        else:
+            notify("✗ rmapi auth did not complete — see terminal")
+        return
     # ---- detached background run: only the transport ----
     if "--bg" in args:
         i = args.index("--bg")
@@ -332,6 +343,10 @@ def main():
     elif cloud_ok:
         transport = "cloud"
     else:
+        if rm_reachable():
+            log("cloud not configured; falling back to USB")
+        else:
+            notify("Cloud not configured (run rm-send --auth) and tablet not reachable over USB")
         transport = "usb"
     cb = get_clipboard()
     if not cb:
