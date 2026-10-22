@@ -95,13 +95,35 @@ def build_pdf(kind, data, workdir):
     if kind == "text":
         stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         esc = typst_escape(data)
-        with open(main, "w") as f:
-            f.write(
-                "#set page(width: 1404pt, height: 1872pt, margin: 96pt)\n"
-                "#set text(size: 20pt, lang: \"en\")\n"
-                "#set par(justify: false, leading: 0.7em)\n\n"
-                f"== {typst_escape(stamp)}\n\n{esc}\n"
-            )
+        # format-preservation mode: valid JSON renders verbatim (monospace,
+        # syntax-highlighted, indentation intact) instead of prose flow
+        s = data.strip()
+        is_json = False
+        if s and s[0] in "{[":
+            try:
+                json.loads(s)
+                is_json = True
+            except (ValueError, TypeError):
+                pass
+        if is_json:
+            longest = max((len(m) for m in re.findall(r"`+", s)), default=0)
+            ticks = "`" * max(3, longest + 1)
+            with open(main, "w") as f:
+                f.write(
+                    "#set page(width: 1404pt, height: 1872pt, margin: 72pt)\n"
+                    "#set text(size: 13pt, lang: \"en\")\n"
+                    f"== {typst_escape(stamp)}\n\n"
+                    f"#show raw: set text(size: 11pt)\n"
+                    f"{ticks}json\n{s}\n{ticks}\n"
+                )
+        else:
+            with open(main, "w") as f:
+                f.write(
+                    "#set page(width: 1404pt, height: 1872pt, margin: 96pt)\n"
+                    "#set text(size: 20pt, lang: \"en\")\n"
+                    "#set par(justify: false, leading: 0.7em)\n\n"
+                    f"== {typst_escape(stamp)}\n\n{esc}\n"
+                )
     else:  # image
         img = os.path.join(workdir, "img.png")
         with open(img, "wb") as f:
