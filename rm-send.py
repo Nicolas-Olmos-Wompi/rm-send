@@ -247,28 +247,90 @@ def rmapi_ready():
     return os.path.exists(os.path.expanduser("~/.config/rmapi/rmapi.conf"))
 
 
-def main():
-    # ---- single-flight guard: alert if a previous send is still in progress ----
+STATE_DIR = os.path.expanduser("~/.local/state/rm-send")
+
+
+def queue_and_spawn(pdf, name, kind, transport):
+    """Fast path: hand off transport to a detached child, return instantly."""
+    os.makedirs(STATE_DIR, exist_ok=True)
+    stamp = time.strftime("%H%M%S")
+    pending = os.path.join(STATE_DIR, f"pending-{stamp}.pdf")
+    shutil.copy(pdf, pending)
+    extra = "--usb" if transport == "usb" else "--cloud"
+    subprocess.Popen(
+        [sys.executable, os.path.abspath(__file__), extra, "--bg", pending, name, kind],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    if transport == "usb":
+        notify("Queued ✓ — sending to tablet over USB (tablet will restart xochitl)")
+    else:
+        notify("Queued ✓ — appears in the zz Inbox folder on the tablet shortly")
+
+
+def transport_bg(pdf, name, kind, transport):
+    """Detached: performs the actual delivery (hold single-flight lock here)."""
     import fcntl
+    os.makedirs(OUTSTATE := os.path.dirname(pdf), exist_ok=True)
+    shutil.copy = shutil.copy  # noqa
     LOCK_F = os.path.expanduser("~/.local/state/rm-send.lock")
-    lf = open(LOCK_F, "w")
     try:
+        lf = open(LOCK_F, "w")
         fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lf.write(str(os.getpid()))
+        lf.flush()
     except OSError:
-        log("blocked: another send already in progress")
-        notify("⚠ rm-send is already busy — the previous send is still in progress")
-        raise SystemExit(5)
-    lf.write(str(os.getpid()))
-    lf.flush()
-    # (lock releases automatically when this process exits)
+        log("bg: previous send still running — dropping this one")
+        notify("⚠ rm-send is already busy — previous send still in progress")
+        os.remove(pdf)
+        return
+    log(f"bg transport={transport} name={name}")
+    try:
+        if transport == "cloud" and rmapi_ready() and shutil.which("rmapi"):
+            res = send_cloud(pdf, name)
+            if res == "ok":
+                notify(f"Delivered ✓ (cloud) — “{name}”")
+            elif rm_reachable():
+                notify("Cloud send failed — retrying over USB")
+                send_usb(pdf, count_pdf_pages(pdf), name)
+                notify(f"Delivered ✓ (USB) — “{name}”")
+            else:
+                notify("✗ rm-send: cloud failed and tablet not on USB — kept in " + OUTSTATE)
+                return  # keep pending file for inspection
+        elif transport == "usb" and rm_reachable():
+            pages = count_pdf_pages(pdf)
+            send_usb(pdf, pages, name)
+            notify(f"Delivered ✓ (USB) — “{name}”")
+        else:
+            notify("✗ rm-send: nothing to send — see ~/.local/state/rm-send.log")
+            return
+        os.remove(pdf)
+    except Exception:
+        log("bg EXCEPTION:\n" + traceback.format_exc())
+        notify("✗ rm-send failed — details in ~/.local/state/rm-send.log")
+
+
+def count_pdf_pages(path):
+    raw = open(path, "rb").read()
+    counts = re.findall(rb"/Pages[^0-9]{0,20}/Count\s+([0-9]+)", raw)
+    return max([int(c) for c in counts], default=1)
+
+
+def main():
     args = sys.argv[1:]
+    # ---- detached background run: only the transport ----
+    if "--bg" in args:
+        i = args.index("--bg")
+        transport_bg(args[i + 1], args[i + 2], args[i + 3],
+                     "usb" if "--usb" in args else "cloud")
+        return
+    # ---- fast path ----
     cloud_ok = rmapi_ready() and shutil.which("rmapi")
     if "--usb" in args:
         transport = "usb"
     elif "--cloud" in args:
         transport = "cloud"
     elif cloud_ok:
-        transport = "cloud" if not rm_reachable() or "--cloud-pref" in args else "cloud"
+        transport = "cloud"
     else:
         transport = "usb"
     cb = get_clipboard()
@@ -276,32 +338,13 @@ def main():
         notify("Nothing usable on the clipboard")
         raise SystemExit(1)
     kind, data = cb
-    notify(f"Sending {kind} to reMarkable…" if kind == "image" else "Sending text to reMarkable…")
+    notify(f"Sending {kind} to reMarkable…")
     workdir = tempfile.mkdtemp(prefix="rmsend-t")
     try:
         pdf, pages = build_pdf(kind, data, workdir)
         name = (INBOX_NAME + " · " + time.strftime("%d %b %H:%M:%S") +
                 (" (text)" if kind == "text" else " (image)"))
-        sent = False
-        if transport == "cloud":
-            res = send_cloud(pdf, name)
-            if res == "ok":
-                sent = True
-                notify(f"Sent to tablet (cloud, syncs itself) — “{name}”")
-            else:
-                if rm_reachable():
-                    notify("Cloud send failed; falling back to USB")
-                else:
-                    notify("Cloud send failed and tablet not on USB")
-        elif rm_reachable():
-            send_usb(pdf, pages, name)
-            sent = True
-            notify(f"Sent to tablet (USB restart) — “{name}”")
-        else:
-            notify("Tablet not reachable (USB) and cloud not configured")
-            raise SystemExit(2)
-        if not sent:
-            raise SystemExit(3)
+        queue_and_spawn(pdf, name, kind, transport)
     finally:
         sh(f"rm -rf {workdir}")
 
