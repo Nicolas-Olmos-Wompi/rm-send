@@ -42,7 +42,7 @@ into any notebook.
 | Python 3 | pacman: `python` | preinstalled |
 | Rendering | pacman: `typst` | `brew install typst` |
 | Clipboard | pacman: `wl-clipboard` (X11: `xclip`) | `brew install pngpaste` |
-| Cloud transport | `rmapi` binary (see [rmapi releases](https://github.com/ddvk/rmapi/releases)) | `brew install rmapi` |
+| Cloud transport | `rmapi` binary — [releases](https://github.com/ddvk/rmapi/releases) | `brew rmapi` is **not available**; download `rmapi-macos-arm64.zip` (or `-intel`) from [releases](https://github.com/ddvk/rmapi/releases), unzip, copy to `~/.local/bin/rmapi` |
 | USB transport | root SSH key on the tablet (`root@10.11.99.1`) | same |
 
 ## Installation
