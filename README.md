@@ -1,69 +1,126 @@
-# rm-send — clipboard → reMarkable tablet
+# rm-send
 
-Sends your Linux/macOS clipboard (text **or** image) to a reMarkable tablet as a
-native document named `zz Inbox · … (text|image)`, sorted into a `zz Inbox`
-library folder.
+Clipboard → reMarkable tablet, with one keystroke.
 
-- **Text** (code, paragraphs) → formatted page-matched PDF
-- **Image** (screenshots, copied pictures) → PNG placed full-page
-- Auto-detects what's on the clipboard (image wins if present)
+`rm-send` watches your system clipboard and delivers its contents — typed text
+or an image — to a reMarkable 1/2/Paper Pro/Move tablet as a native document,
+organized in a dedicated `zz Inbox` library folder. It runs on macOS and Linux,
+needs no cloud account replacement tools, and never modifies the tablet's software.
 
-## Setup
-
-```bash
-rm-send --auth      # one-time: paste the 8-char code from
-                    # https://my.remarkable.com/device/browser/connect
+```
+┌──────────────┐      ┌───────────────┐      ┌────────────────────┐
+│  Clipboard   │ ──►  │  typst → PDF  │ ──►  │  reMarkable tablet │
+│ (text/image) │      │  (0.3 s)      │      │  zz Inbox folder   │
+└──────────────┘      └───────────────┘      └────────────────────┘
 ```
 
-Stores nothing in the repo — the device token lands in `~/.config/rmapi/rmapi.conf`
-(gitignored). To copy your auth to another machine, either copy that file or run
-`--auth` there with a fresh code. To revoke: remove the device in your
-reMarkable account settings, or delete the conf file.
+## How it works
 
-## Transports
+1. Clipboard content is classified automatically: images take precedence,
+   otherwise plain text is used.
+2. Content is rendered to a PDF matching the tablet's page geometry
+   (1404 × 1872 pt). Text documents use a clean typographic layout; images are
+   placed full-page.
+3. The PDF is delivered through one of two transports:
+   - **Cloud** (default) — `rmapi` uploads to your reMarkable account; the
+     tablet's `rm-sync` service fetches it in the background. No interaction
+     with the tablet UI is required.
+   - **USB** (offline fallback) — the document is written directly into
+     xochitl's document store over SSH, followed by a xochitl restart.
+4. The upload runs detached from the invoking session. The user receives an
+   immediate *Queued* notification on keypress, and a *Delivered* notification
+   upon completion.
 
-| Transport | Behavior | Needs |
+Documents appear as `zz Inbox · <date time> (text|image)` in the tablet library.
+From there, use the tablet's built-in Capture/selection tool to paste content
+into any notebook.
+
+## Requirements
+
+| Component | Linux (Wayland) | macOS |
 |---|---|---|
-| `--cloud` (default) | rmapi → reMarkable cloud → `rm-sync` pulls it in silently. **No restart, screen never flashes** | `rm-send --auth` once + tablet WiFi on |
-| `--usb` | Direct SSH injection into xochitl's document store + restart | SSH key to tablet root (USB: `10.11.99.1`) |
+| Python 3 | pacman: `python` | preinstalled |
+| Rendering | pacman: `typst` | `brew install typst` |
+| Clipboard | pacman: `wl-clipboard` (X11: `xclip`) | `brew install pngpaste` |
+| Cloud transport | `rmapi` binary (see [rmapi releases](https://github.com/ddvk/rmapi/releases)) | `brew install rmapi` |
+| USB transport | root SSH key on the tablet (`root@10.11.99.1`) | same |
 
-Cloud is used automatically when configured; USB is the offline/private fallback.
-
-## Install
-
-Linux (Omarchy / any Wayland distro):
+## Installation
 
 ```bash
+git clone <repository-url> && cd rm-send
 ./install.sh
+rm-send --auth     # one-time; see below
 ```
 
-Requirements: `python3`, `typst`, `wl-clipboard` (or `xclip`), optionally `rmapi`
-(for cloud) and SSH access to the tablet (for USB).
+`install.sh` deploys a launch shim to `~/.local/bin/rm-send`, verifies each
+dependency, and reports whether the cloud and USB transports are available.
 
-macOS: copy `rm-send.py` anywhere, then `pip3 install`-free — you need `typst`
-(`brew install typst`) and `pngpaste` (`brew install pngpaste`). `rmapi` for
-cloud (`brew install rmapi`).
+### Authentication (cloud transport)
+
+```bash
+rm-send --auth
+```
+
+This runs `rmapi`'s device-auth flow: paste the 8-character code shown at
+[my.remarkable.com/device/browser/connect](https://my.remarkable.com/device/browser/connect).
+The resulting token is stored in `~/.config/rmapi/rmapi.conf` (gitignored).
+Neither the repository nor the script embeds any credentials.
+
+To migrate auth to another machine, either copy the conf file or repeat
+`rm-send --auth` there. To revoke access, delete the conf file or remove the
+device from your reMarkable account settings.
 
 ## Usage
 
 ```bash
-rm-send            # copy anything, then press/run
-rm-send --usb      # force the offline USB transport
-rm-send --cloud    # force the cloud transport
+rm-send            # auto: cloud if configured, else USB
+rm-send --cloud    # force cloud
+rm-send --usb      # force USB (offline/private)
+rm-send --auth     # configure cloud credentials
 ```
 
-Or bind to a key. On Hyprland (Omarchy):
-`o.bind("SUPER + SHIFT + I", "reMarkable: send clipboard", "rm-send")`
+Hyprland (Omarchy) keybinding — add to `~/.config/hypr/bindings.lua`:
 
-## Safety
+```lua
+o.bind("SUPER + SHIFT + I", "reMarkable: send clipboard", "rm-send")
+```
 
-- Backs up the tablet's entire document store (once per day) to `~/rm-backups/`
-  before first write
-- Never patches or replaces `/usr/bin/xochitl` — it only adds documents
-- One-command rollback: empty the Inbox folder / restore the backup
+On macOS, add a shortcut via the Shortcuts app, Raycast, or Alfred pointing to
+`rm-send.py`.
 
-## Secrets / auth
+## Environment variables
 
-Auth is handled by `rmapi` (triggered via `rm-send --auth`); `rm-send.py` itself
-contains zero credentials. `~/.config/rmapi/rmapi.conf` holds your account's
-device token — never commit or share it.
+| Variable | Default | Purpose |
+|---|---|---|
+| `RM_HOST` | `root@10.11.99.1` | Tablet SSH target |
+| `RM_INBOX_NAME` | `zz Inbox` | Visible name prefix of delivered documents |
+
+## Design notes
+
+- **Fault tolerance**: the transport phase runs as a detached process; a lock
+  file prevents concurrent sends (a second keypress raises a busy alert instead
+  of racing the first).
+- **Diagnostics**: every run is logged to `~/.local/state/rm-send.log`; failures
+  surface as notifications rather than invisible errors.
+- **Backups**: before its first write of each day, the tool snapshots the
+  tablet's entire document store to `~/rm-backups/docs-<date>.tgz`.
+- **Tablet integrity**: documents are only *added*; the tool installs nothing,
+  patches nothing, and writes no configuration on the tablet.
+- **Latency**: rendering and validation complete in ~0.4 s; slow transports
+  never block the user.
+
+## Limitations
+
+- Cloud delivery latency depends on the tablet's sync cycle (seconds to
+  minutes); USB delivery restarts xochitl (~4–8 s), closing any open view.
+- Rich-text clipboard content is exported as plain text.
+- Cloud transport depends on the `rmapi` CLI, which is no longer maintained
+  upstream (v0.0.35 remains functional); [`remarkable-toolkit`](https://github.com/Oellix/remarkable-toolkit)
+  is a compatible alternative should the API change.
+
+## Security
+
+Credentials live only in `~/.config/rmapi/rmapi.conf` (gitignored). All cloud
+traffic is HTTPS, directly to reMarkable's endpoints. The device token grants
+read/write access to the account's document storage — treat it accordingly.
