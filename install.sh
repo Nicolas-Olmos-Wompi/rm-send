@@ -8,6 +8,16 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$DIR/rm-send" "$HOME/.local/bin/rm-send"
 echo "✓ installed: $HOME/.local/bin/rm-send -> $DIR/rm-send"
 
+# 1b) default config file (never overwrites an existing one)
+CONFIG="$HOME/.config/rm-send.toml"
+if [ ! -e "$CONFIG" ]; then
+  mkdir -p "$(dirname "$CONFIG")"
+  cp "$DIR/config.example.toml" "$CONFIG"
+  echo "✓ created config: $CONFIG (edit sizes/folder to taste)"
+else
+  echo "• existing config left untouched: $CONFIG"
+fi
+
 # 2) dependency check
 missing=""
 for t in python3 typst wl-paste notify-send; do
