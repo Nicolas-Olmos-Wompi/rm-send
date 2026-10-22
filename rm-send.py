@@ -111,16 +111,15 @@ def build_pdf(kind, data, workdir):
             with open(main, "w") as f:
                 f.write(
                     "#set page(width: 1404pt, height: 1872pt, margin: 72pt)\n"
-                    "#set text(size: 13pt, lang: \"en\")\n"
                     f"== {typst_escape(stamp)}\n\n"
-                    f"#show raw: set text(size: 11pt)\n"
+                    f"#show raw: set text(size: 16pt)\n"
                     f"{ticks}json\n{s}\n{ticks}\n"
                 )
         else:
             with open(main, "w") as f:
                 f.write(
                     "#set page(width: 1404pt, height: 1872pt, margin: 96pt)\n"
-                    "#set text(size: 20pt, lang: \"en\")\n"
+                    "#set text(size: 26pt, lang: \"en\")\n"
                     "#set par(justify: false, leading: 0.7em)\n\n"
                     f"== {typst_escape(stamp)}\n\n{esc}\n"
                 )
