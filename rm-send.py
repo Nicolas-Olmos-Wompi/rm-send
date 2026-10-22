@@ -307,8 +307,16 @@ def main():
 
 
 def notify(msg):
+    log(msg)
     print(msg)
-    if sys.platform != "darwin":
+    if sys.platform == "darwin" or os.uname().sysname == "Darwin":
+        try:
+            subprocess.run(["osascript", "-e",
+                            f'display notification "{msg}" with title "rm-send"'],
+                           timeout=10, capture_output=True)
+        except Exception:
+            pass
+    else:
         sh(f"notify-send -a rm-send \"{msg}\"")
 
 
